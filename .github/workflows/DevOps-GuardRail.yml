@@ -1,0 +1,58 @@
+name: DevOps Guardrails
+
+on: [push]
+
+jobs:
+  gitleaksscan:
+    name: gitleaks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  sonarcloud:
+    name: SonarCloud
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
+      - name: SonarCloud Scan
+        uses: SonarSource/sonarcloud-github-action@master
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Needed to get PR information, if any
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          
+  zap:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: OWASP ZAP Baseline Scan
+
+        uses: zaproxy/action-baseline@v0.11.0
+        with:
+          target: "https://juice-shop.herokuapp.com/#/"
+
+  dependency-check:
+    name: Dependency-Check
+    runs-on: ubuntu-latest
+    steps: 
+      - name: Download OWASP Dependency Check
+        run: |
+          VERSION=$(curl -s https://jeremylong.github.io/DependencyCheck/current.txt)
+          curl -sL "https://github.com/jeremylong/DependencyCheck/releases/download/v$VERSION/dependency-check-$VERSION-release.zip" --output dependency-check.zip
+          unzip dependency-check.zip
+      - name: Run Dependency Check
+        run: |
+          ./dependency-check/bin/dependency-check.sh --out dependency-check-report.html --scan .
+          rm -rf dependency-check*
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: artifacts
+          path: dependency-check-report.html
